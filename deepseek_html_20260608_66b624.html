@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Gallery · Smart Image Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: radial-gradient(circle at 30% 20%, #0f0a1a, #050210);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', 'Inter', 'Poppins', system-ui, sans-serif;
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .universe {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(10, 5, 20, 0.65);
+            backdrop-filter: blur(2px);
+            overflow: hidden;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+        }
+        canvas:active { cursor: grabbing; }
+
+        .glass-panel {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(12, 6, 22, 0.95);
+            backdrop-filter: blur(18px);
+            border-radius: 60px;
+            padding: 10px 24px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            z-index: 30;
+            border: 1px solid rgba(255, 200, 100, 0.5);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            max-width: 95vw;
+            max-height: 110px;
+            overflow-y: auto;
+        }
+
+        .game-trigger {
+            background: rgba(0, 0, 0, 0.75);
+            border: none;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-weight: 700;
+            font-size: 0.75rem;
+            color: #ffeedd;
+            cursor: pointer;
+            border-left: 3px solid #ffaa66;
+            transition: 0.2s;
+        }
+        .game-trigger.active { background: #ff6a3a; color: white; }
+        .game-trigger:hover { transform: translateY(-2px); background: rgba(255, 100, 60, 0.95); }
+        .theme-reset { background: rgba(80, 50, 120, 0.85); border-left-color: #c9aaff !important; }
+        .theme-reset.active { background: #aa88ff; }
+
+        @media (max-width: 750px) {
+            .glass-panel { padding: 8px 16px; bottom: 10px; max-height: 95px; gap: 6px; }
+            .game-trigger { padding: 5px 12px; font-size: 0.65rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="universe">
+    <canvas id="mainCanvas"></canvas>
+    <div class="glass-panel" id="buttonPanel"></div>
+</div>
+
+<script>
+    (function() {
+        // ============================================================
+        // 24 THEMES (ALPHABETICAL ORDER)
+        // ============================================================
+        const themeColors = {
+            "Alien": "#88ffaa", "Angels": "#ffdd88", "Bat": "#6644aa", "Bunny": "#ffaacc",
+            "Cat": "#ffaa66", "Cosmic Entity": "#ff88ff", "Cow": "#ffffff", "Demon": "#9900ff",
+            "Dog": "#ffaa88", "Dragon": "#ff4444", "Elf": "#66ff66", "Fox": "#ff9966",
+            "Human": "#ffaa66", "IRL": "#88aaff", "Mouse": "#ccaa77", "Orc": "#66aa44",
+            "Panda": "#aaaaaa", "Sea Creature": "#44ccff", "Snake": "#44ff44", "Spider": "#8844aa",
+            "Spirit": "#aaddff", "Train": "#ff8844", "Wolf": "#88ccff", "Witch": "#aa44ff"
+        };
+        
+        const themeEmoji = {
+            "Alien": "👽", "Angels": "👼", "Bat": "🦇", "Bunny": "🐰",
+            "Cat": "🐱", "Cosmic Entity": "🌌", "Cow": "🐄", "Demon": "👹",
+            "Dog": "🐕", "Dragon": "🐉", "Elf": "🧝", "Fox": "🦊",
+            "Human": "🧑", "IRL": "🌍", "Mouse": "🐭", "Orc": "👺",
+            "Panda": "🐼", "Sea Creature": "🐙", "Snake": "🐍", "Spider": "🕷️",
+            "Spirit": "👻", "Train": "🚂", "Wolf": "🐺", "Witch": "🧙"
+        };
+        
+        // ============================================================
+        // ALL PEOPLE WITH THEIR CORRECT THEMES
+        // ============================================================
+        const people = [
+            { name: "kibbi", theme: "Angels" },
+            { name: "celestialwhistaria", theme: "Dragon" },
+            { name: "sapphire.streams", theme: "Dragon" },
+            { name: "krisydrahunter", theme: "Human" },
+            { name: "jyevt", theme: "Human" },
+            { name: "ashenmei", theme: "Human" },
+            { name: "zerodenhunter", theme: "Human" },
+            { name: "nokra_vt", theme: "Human" },
+            { name: "nerdyjojovtuber_", theme: "Human" },
+            { name: "princessrosca", theme: "Human" },
+            { name: "superkimvt", theme: "Human" },
+            { name: "prometheus_bp", theme: "Demon" },
+            { name: "kuroiryuu", theme: "Demon" },
+            { name: "jaderocker", theme: "Demon" },
+            { name: "qiyra.tv", theme: "Demon" },
+            { name: "tldrsoma_", theme: "Demon" },
+            { name: "astoryosi", theme: "Demon" },
+            { name: "aerytiefling", theme: "Demon" },
+            { name: "korvuscastille", theme: "Demon" },
+            { name: "knifeearssiena", theme: "Elf" },
+            { name: "killedbyskye", theme: "IRL" },
+            { name: "cyphriee", theme: "Angels" },
+            { name: "pris.cesa", theme: "Angels" },
+            { name: "amekawaakira", theme: "Angels" },
+            { name: "angeweenievt", theme: "Angels" },
+            { name: "shima", theme: "Demon" },
+            { name: "kazahanasetsuka", theme: "Mouse" },
+            { name: "illythiavt", theme: "Bat" },
+            { name: "dash_exist", theme: "Bat" },
+            { name: "ohmaishumai", theme: "Bat" },
+            { name: "mizuki_yorunaga", theme: "Bat" },
+            { name: "towapii", theme: "Bat" },
+            { name: "musemallow", theme: "Spirit" },
+            { name: "spleenvt", theme: "Spirit" },
+            { name: "foxdestiny3556", theme: "Spirit" },
+            { name: "jester", theme: "Spirit" },
+            { name: "dyunnevt", theme: "Snake" },
+            { name: "midas_verena", theme: "Snake" },
+            { name: "akifujimaruvt", theme: "Dog" },
+            { name: "notsaintwolf", theme: "Dog" },
+            { name: "kanathepuppywitch", theme: "Dog" },
+            { name: "saddie_odearg", theme: "Witch" },
+            { name: "chie_latte99", theme: "Witch" },
+            { name: "yzarahq", theme: "Orc" },
+            { name: "projectbrutus0", theme: "Alien" },
+            { name: "combatoven", theme: "Cow" },
+            { name: "evie_celeste", theme: "Cow" },
+            { name: "choocchanvt", theme: "Train" },
+            { name: "dummycute", theme: "Dog" },
+            { name: "pndaemonium", theme: "Panda" },
+            { name: "naki_vt", theme: "Wolf" },
+            { name: "vr_damaged_wolf", theme: "Wolf" },
+            { name: "sodapuptv", theme: "Bunny" },
+            { name: "mafumariana", theme: "Sea Creature" },
+            { name: "mintmochivt", theme: "Sea Creature" },
+            { name: "loveiathanlovie", theme: "Cosmic Entity" },
+            { name: "loonirium", theme: "Fox" },
+            { name: "ushisushi_", theme: "Cat" },
+            { name: "meowdaru", theme: "Cat" },
+            { name: "xosodaxo", theme: "Cat" },
+            { name: "rabo9d", theme: "Cat" }
+        ];
+        
+        // ============================================================
+        // GAMES EACH PERSON PLAYED
+        // ============================================================
+        const personGames = {
+            "kibbi": ["Dead by Daylight", "Phasmophobia", "7 Days to Die", "Escape the Backrooms", "Conan Exiles", "Once Human", "Fortnite", "Minecraft"],
+            "celestialwhistaria": ["NARAKA: BLADEPOINT", "Marvel Rivals", "Overwatch", "Dead by Daylight", "R.E.P.O."],
+            "sapphire.streams": ["R.E.P.O.", "Phasmophobia", "Minecraft", "Lethal Company", "Warframe"],
+            "krisydrahunter": ["Black Desert", "Phasmophobia", "HELLDIVERS 2", "Dead by Daylight", "Crimson Desert", "Fortnite", "It Takes Two", "R.E.P.O."],
+            "jyevt": ["RISK: The Game of Global Domination", "Dead by Daylight", "Minecraft"],
+            "ashenmei": ["Overwatch", "Marvel Rivals", "Minecraft", "R.E.P.O."],
+            "zerodenhunter": ["Black Desert", "Crimson Desert", "Fortnite", "Marvel Rivals", "It Takes Two"],
+            "nokra_vt": ["Crimson Desert", "Minecraft"],
+            "nerdyjojovtuber_": ["Mario Kart 8 Deluxe", "Minecraft"],
+            "princessrosca": ["Chained Together", "League of Legends", "Marvel Rivals"],
+            "superkimvt": ["Split Fiction", "Mario Kart 8 Deluxe", "Toontown Online", "Jackbox Party Packs", "Club Penguin", "Among Us"],
+            "prometheus_bp": ["Marvel Rivals", "Lethal Company", "R.E.P.O.", "Deadlock", "Halo Infinite", "RISK: The Game of Global Domination", "RuneScape", "World of Warcraft", "VRChat"],
+            "kuroiryuu": ["Dead by Daylight", "Warframe", "Overwatch", "Minecraft"],
+            "jaderocker": ["Minecraft", "Fortnite", "R.E.P.O."],
+            "qiyra.tv": ["Warframe", "World of Warcraft", "Deadlock", "Minecraft", "R.E.P.O.", "Lethal Company"],
+            "tldrsoma_": ["Marvel Rivals", "Overwatch", "R.E.P.O.", "Among Us"],
+            "astoryosi": ["League of Legends", "Overwatch", "Marvel Rivals", "Minecraft", "Phasmophobia", "Terraria", "World of Warcraft", "Raft", "Lethal Company", "Among Us"],
+            "aerytiefling": ["Among Us", "Jackbox Party Packs"],
+            "korvuscastille": ["Warframe", "Minecraft", "HELLDIVERS 2", "Warhammer 40,000: Space Marine II", "Phasmophobia"],
+            "knifeearssiena": ["VALORANT", "Dead by Daylight", "Marvel Rivals", "Apex Legends", "Minecraft", "Lethal Company", "Phasmophobia", "Fortnite", "R.E.P.O."],
+            "killedbyskye": ["Dead by Daylight", "Phasmophobia", "ARK: Survival Ascended", "Outlast Trials"],
+            "cyphriee": ["Path of Exile 2", "Monster Hunter: World", "Warhammer 40,000: Space Marine II"],
+            "pris.cesa": ["Teamfight Tactics", "Minecraft", "Overwatch", "Among Us", "Jackbox Party Packs", "League of Legends", "VALORANT", "Phasmophobia", "ROBLOX", "R.E.P.O.", "Marvel Rivals", "It Takes Two"],
+            "amekawaakira": ["Among Us", "Phasmophobia", "ROBLOX", "Minecraft"],
+            "angeweenievt": ["Vintage Story", "League of Legends", "Among Us", "Golf With Your Friends", "Minecraft"],
+            "shima": ["Fortnite"],
+            "kazahanasetsuka": ["Minecraft", "Marvel Rivals", "VALORANT", "R.E.P.O.", "Golf With Your Friends", "Mario Kart 8 Deluxe"],
+            "illythiavt": ["Minecraft", "Overwatch", "Lethal Company", "Goose Goose Duck", "Fortnite", "ROBLOX", "PlateUp!"],
+            "dash_exist": ["Marvel Rivals", "R.E.P.O.", "Minecraft"],
+            "ohmaishumai": ["Diablo IV", "Palia", "Monster Hunter Wilds", "R.E.P.O.", "Once Human", "Fall Guys", "Fortnite", "The Outlast Trials", "World of Warcraft"],
+            "mizuki_yorunaga": ["Dead by Daylight", "Phasmophobia", "R.E.P.O.", "Goose Goose Duck", "PICO PARK", "Supermarket Together", "Split Fiction", "Mario Kart 8 Deluxe", "Overwatch", "Project Zomboid"],
+            "towapii": ["VALORANT"],
+            "musemallow": ["Minecraft", "Marvel Rivals", "Risk of Rain 2", "Monster Hunter Wilds", "7 Days to Die", "Palworld", "Among Us", "Phasmophobia", "Deep Rock Galactic", "ELDEN RING"],
+            "spleenvt": ["R.E.P.O.", "Phasmophobia", "HELLDIVERS 2", "7 Days to Die", "Titanfall 2", "Warhammer 40,000: Darktide", "Sea of Thieves", "Supermarket Together", "Minecraft", "ELDEN RING", "Destiny 2", "VRChat", "Palworld", "Escape from Tarkov", "Risk of Rain 2", "Deep Rock Galactic", "The Outlast Trials"],
+            "foxdestiny3556": ["Marvel Rivals", "Super Smash Bros. Ultimate", "Dead by Daylight", "Overwatch", "Uno", "Mario Kart 8 Deluxe", "Fortnite", "Minecraft", "Palworld"],
+            "jester": ["ROBLOX", "Marvel Rivals", "LOCKDOWN Protocol"],
+            "dyunnevt": ["League of Legends", "VALORANT", "Fall Guys", "Pummel Party"],
+            "midas_verena": ["Phasmophobia", "Palworld", "Minecraft", "Among Us", "R.E.P.O.", "Lethal Company", "Sea of Thieves", "VRChat"],
+            "akifujimaruvt": ["Dead by Daylight", "Minecraft", "Overwatch", "Marvel Rivals", "R.E.P.O.", "Fortnite", "VALORANT", "ROBLOX", "PlateUp!", "Mario Kart 8 Deluxe"],
+            "notsaintwolf": ["ROBLOX", "Marvel Rivals", "Ravenswatch"],
+            "kanathepuppywitch": ["League of Legends", "A Way Out", "Left 4 Dead 2", "ROBLOX", "No More Room in Hell", "Killing Floor 2", "Dead by Daylight", "Fortnite"],
+            "saddie_odearg": ["VRChat", "Minecraft", "Phasmophobia", "Deep Rock Galactic", "Don't Starve Together", "Jackbox Party Packs", "Gartic Phone"],
+            "chie_latte99": ["Minecraft"],
+            "yzarahq": ["Diablo IV", "Minecraft", "ELDEN RING"],
+            "projectbrutus0": ["Stardew Valley"],
+            "combatoven": ["Portal 2", "R.E.P.O.", "Words On Stream", "Palia", "Jackbox Party Packs", "Gartic Phone"],
+            "evie_celeste": ["R.E.P.O.", "Fortnite", "Phasmophobia", "Lethal Company", "7 Days to Die", "PICO PARK", "Marvel Rivals", "Party Animals", "Escape the Backrooms", "TEKKEN 8", "Call of Duty: Warzone", "Sea of Thieves", "DEVOUR"],
+            "choocchanvt": ["Apex Legends", "Supermarket Together", "Minecraft", "Lethal Company", "Jackbox Party Packs", "Among Us", "Phasmophobia", "Golf With Your Friends"],
+            "dummycute": ["Overwatch"],
+            "pndaemonium": ["VALORANT", "Phasmophobia", "Marvel Rivals", "Fortnite", "Minecraft", "Among Us", "Left 4 Dead 2", "7 Days to Die", "Dead by Daylight"],
+            "naki_vt": ["Marvel Rivals", "HELLDIVERS 2", "Fortnite", "Phasmophobia", "R.E.P.O.", "Hunt: Showdown 1896", "Lethal Company", "ROBLOX", "GTFO", "No More Room in Hell 2"],
+            "vr_damaged_wolf": ["Fortnite", "HELLDIVERS 2", "ROBLOX", "Apex Legends", "Among Us", "Fall Guys", "Rocket League", "Warframe"],
+            "sodapuptv": ["Dead by Daylight", "For Honor", "DON'T SCREAM TOGETHER", "SCUM", "DayZ", "VRChat", "7 Days to Die", "THE FINALS", "Conqueror's Blade", "ROBLOX", "Project Zomboid", "Minecraft", "Rust", "Barotrauma", "HELLDIVERS 2", "R.E.P.O.", "Marvel Rivals", "Terraria"],
+            "mafumariana": ["Dead by Daylight"],
+            "mintmochivt": ["Call of Duty: Black Ops Cold War", "Dead by Daylight", "Overwatch", "Warframe", "Destiny 2", "Minecraft", "R.E.P.O.", "Sea of Thieves", "Apex Legends"],
+            "loveiathanlovie": ["Minecraft", "Phasmophobia", "R.E.P.O.", "LOCKDOWN Protocol", "Overwatch", "Escape the Backrooms", "Uno", "VRChat", "Lethal Company", "Dead by Daylight", "Marvel Rivals"],
+            "loonirium": ["Overwatch", "Strinova", "Teamfight Tactics", "Marvel Rivals", "League of Legends", "SMITE 2"],
+            "ushisushi_": ["Goose Goose Duck", "R.E.P.O.", "ROBLOX", "Phasmophobia"],
+            "meowdaru": ["Overwatch", "Marvel Rivals", "Black Desert"],
+            "xosodaxo": ["VALORANT", "Minecraft", "Warframe", "Honkai: Star Rail", "Marvel Rivals", "Apex Legends", "R.E.P.O.", "Genshin Impact"],
+            "rabo9d": ["ARKNIGHTS: ENDFIELD", "R.E.P.O.", "Call of Duty: Black Ops 6", "Monster Hunter Wilds", "DayZ"]
+        };
+        
+        // ============================================================
+        // BUILD ALL GAMES LIST
+        // ============================================================
+        const allGamesSet = new Set();
+        for (let person in personGames) {
+            personGames[person].forEach(game => allGamesSet.add(game));
+        }
+        const allGames = Array.from(allGamesSet).sort();
+        
+        // ============================================================
+        // SMART IMAGE DETECTION - Tries multiple naming patterns
+        // ============================================================
+        const imageCache = {};
+        
+        function generatePossibleNames(originalName) {
+            const lower = originalName.toLowerCase();
+            const noDots = lower.replace(/\./g, '_');
+            const noUnderscores = lower.replace(/_/g, '');
+            const noSpecial = lower.replace(/[^a-z0-9]/g, '');
+            const firstPart = lower.split('.')[0];
+            const withoutUnderscore = lower.replace(/_/g, '');
+            
+            return [
+                originalName,                    // exact original
+                lower,                           // lowercase
+                noDots,                          // dots to underscores
+                noUnderscores,                   // remove underscores
+                noSpecial,                       // only letters/numbers
+                firstPart,                       // before first dot
+                withoutUnderscore,               // underscores removed
+                originalName.replace(/\./g, '_'), // dots to underscores
+                originalName.replace(/_/g, '')    // underscores removed
+            ];
+        }
+        
+        function tryLoadImage(personName) {
+            const possibleNames = generatePossibleNames(personName);
+            const extensions = ['png', 'jpg', 'jpeg', 'PNG', 'JPG', 'JPEG'];
+            const folders = ['', 'images/', 'img/', 'assets/images/', '/images/'];
+            
+            let attemptIndex = 0;
+            let totalAttempts = possibleNames.length * extensions.length * folders.length;
+            
+            function tryNext() {
+                if (attemptIndex >= totalAttempts) {
+                    imageCache[personName] = null;
+                    return;
+                }
+                
+                const folderIndex = Math.floor(attemptIndex / (extensions.length * possibleNames.length)) % folders.length;
+                const extIndex = Math.floor(attemptIndex / possibleNames.length) % extensions.length;
+                const nameIndex = attemptIndex % possibleNames.length;
+                
+                const folder = folders[folderIndex];
+                const name = possibleNames[nameIndex];
+                const ext = extensions[extIndex];
+                const path = folder + name + '.' + ext;
+                
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                
+                img.onload = () => {
+                    imageCache[personName] = img;
+                };
+                
+                img.onerror = () => {
+                    attemptIndex++;
+                    tryNext();
+                };
+                
+                img.src = path;
+                attemptIndex++;
+            }
+            
+            tryNext();
+        }
+        
+        // Start loading all images
+        for (let person of people) {
+            tryLoadImage(person.name);
+        }
+        
+        // ============================================================
+        // CREATE ITEMS (ONE PER PERSON)
+        // ============================================================
+        const items = [];
+        let itemId = 0;
+        
+        for (let person of people) {
+            items.push({
+                id: itemId++,
+                name: person.name,
+                theme: person.theme,
+                x: 0,
+                y: 0,
+                vx: 0,
+                vy: 0,
+                settled: false,
+                targetX: null,
+                targetY: null
+            });
+        }
+        
+        // ============================================================
+        // CANVAS & PHYSICS
+        // ============================================================
+        let targets = {};
+        let w = window.innerWidth;
+        let h = window.innerHeight;
+        const canvas = document.getElementById('mainCanvas');
+        let ctx = canvas.getContext('2d');
+        
+        const BOTTOM_RESERVE = 130;
+        
+        function resize() {
+            w = window.innerWidth;
+            h = window.innerHeight;
+            canvas.width = w;
+            canvas.height = h;
+            
+            const cols = 6;
+            const rows = 4;
+            const startX = w * 0.08;
+            const startY = h * 0.10;
+            const endX = w * 0.92;
+            const endY = h - BOTTOM_RESERVE - 20;
+            
+            const stepX = (endX - startX) / (cols - 1);
+            const stepY = (endY - startY) / (rows - 1);
+            
+            const usedThemes = [...new Set(people.map(p => p.theme))].sort();
+            
+            for (let i = 0; i < usedThemes.length; i++) {
+                const theme = usedThemes[i];
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                targets[theme] = {
+                    x: startX + col * stepX,
+                    y: startY + row * stepY
+                };
+                targets[theme].x = Math.min(w - 90, Math.max(90, targets[theme].x));
+                targets[theme].y = Math.min(endY - 20, Math.max(100, targets[theme].y));
+            }
+            
+            for (let item of items) {
+                item.x = Math.random() * (w - 200) + 100;
+                item.y = Math.random() * (endY - 150) + 80;
+                item.vx = 0;
+                item.vy = 0;
+                item.settled = false;
+            }
+        }
+        
+        window.addEventListener('resize', () => { resize(); repositionAllItems(); });
+        resize();
+        
+        function repositionAllItems() {
+            const safeTop = 80;
+            const safeBottom = h - BOTTOM_RESERVE - 30;
+            for (let item of items) {
+                item.x = Math.random() * (w - 200) + 100;
+                item.y = Math.random() * (safeBottom - safeTop) + safeTop;
+                item.vx = 0;
+                item.vy = 0;
+                item.settled = false;
+            }
+        }
+        
+        let activeGame = null;
+        let themeMode = false;
+        
+        function updateTargets() {
+            const centerX = w/2;
+            const centerY = h/2;
+            const perimeterRadius = Math.min(w, h - BOTTOM_RESERVE) * 0.38;
+            
+            for (let item of items) {
+                if (themeMode) {
+                    const t = targets[item.theme];
+                    if (t) {
+                        item.targetX = t.x;
+                        item.targetY = t.y;
+                    }
+                } 
+                else if (activeGame) {
+                    const personGamesList = personGames[item.name] || [];
+                    const isTarget = personGamesList.includes(activeGame);
+                    
+                    if (isTarget) {
+                        item.targetX = centerX;
+                        item.targetY = centerY;
+                    } else {
+                        const angle = (item.id * 31) % 360 * Math.PI / 180;
+                        let tx = centerX + Math.cos(angle) * perimeterRadius;
+                        let ty = centerY + Math.sin(angle) * perimeterRadius;
+                        item.targetX = Math.min(w - 70, Math.max(70, tx));
+                        item.targetY = Math.min(h - BOTTOM_RESERVE - 30, Math.max(80, ty));
+                    }
+                } else {
+                    item.targetX = null;
+                    item.targetY = null;
+                }
+            }
+        }
+        
+        function update() {
+            updateTargets();
+            const safeBottom = h - BOTTOM_RESERVE - 25;
+            
+            for (let item of items) {
+                if (item.targetX === null || item.targetY === null) {
+                    if (item.settled) {
+                        item.vx += (Math.random() - 0.5) * 0.012;
+                        item.vy += (Math.random() - 0.5) * 0.012;
+                        item.vx *= 0.98;
+                        item.vy *= 0.98;
+                        const maxIdle = 0.2;
+                        if (Math.abs(item.vx) > maxIdle) item.vx = item.vx > 0 ? maxIdle : -maxIdle;
+                        if (Math.abs(item.vy) > maxIdle) item.vy = item.vy > 0 ? maxIdle : -maxIdle;
+                        item.x += item.vx;
+                        item.y += item.vy;
+                        item.y = Math.min(safeBottom - 20, Math.max(50, item.y));
+                    }
+                    continue;
+                }
+                
+                const dx = item.targetX - item.x;
+                const dy = item.targetY - item.y;
+                const dist = Math.hypot(dx, dy);
+                
+                if (dist < 8) {
+                    item.x = item.targetX;
+                    item.y = item.targetY;
+                    item.vx = 0;
+                    item.vy = 0;
+                    if (!item.settled) item.settled = true;
+                } 
+                else {
+                    item.settled = false;
+                    let force = 0.10;
+                    if (dist > 100) force = 0.18;
+                    if (dist > 250) force = 0.28;
+                    
+                    const fx = (dx / dist) * force;
+                    const fy = (dy / dist) * force;
+                    item.vx += fx;
+                    item.vy += fy;
+                    
+                    const maxSpeed = 4.5;
+                    if (Math.abs(item.vx) > maxSpeed) item.vx = item.vx > 0 ? maxSpeed : -maxSpeed;
+                    if (Math.abs(item.vy) > maxSpeed) item.vy = item.vy > 0 ? maxSpeed : -maxSpeed;
+                    
+                    item.vx *= 0.94;
+                    item.vy *= 0.94;
+                    item.x += item.vx;
+                    item.y += item.vy;
+                }
+                
+                const pad = 45;
+                if (item.x < pad) { item.x = pad; if (!item.settled) item.vx = -item.vx * 0.3; }
+                if (item.x > w - pad) { item.x = w - pad; if (!item.settled) item.vx = -item.vx * 0.3; }
+                if (item.y < 50) { item.y = 50; if (!item.settled) item.vy = -item.vy * 0.3; }
+                if (item.y > safeBottom - 15) { 
+                    item.y = safeBottom - 15; 
+                    if (!item.settled) item.vy = -item.vy * 0.3; 
+                }
+            }
+            
+            for (let i = 0; i < items.length; i++) {
+                for (let j = i + 1; j < items.length; j++) {
+                    const a = items[i];
+                    const b = items[j];
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = 56;
+                    if (dist < minDist) {
+                        const angle = Math.atan2(dy, dx);
+                        const overlap = minDist - dist;
+                        const push = overlap * 0.3;
+                        a.x -= Math.cos(angle) * push;
+                        a.y -= Math.sin(angle) * push;
+                        b.x += Math.cos(angle) * push;
+                        b.y += Math.sin(angle) * push;
+                        if (!a.settled) {
+                            a.vx -= Math.cos(angle) * 0.04;
+                            a.vy -= Math.sin(angle) * 0.04;
+                        }
+                        if (!b.settled) {
+                            b.vx += Math.cos(angle) * 0.04;
+                            b.vy += Math.sin(angle) * 0.04;
+                        }
+                        a.y = Math.min(safeBottom - 15, Math.max(50, a.y));
+                        b.y = Math.min(safeBottom - 15, Math.max(50, b.y));
+                    }
+                }
+            }
+        }
+        
+        function drawReadableText(text, x, y, fontSize, color) {
+            ctx.font = `700 ${fontSize}px 'Segoe UI', 'Inter', system-ui`;
+            ctx.lineWidth = 3.5;
+            ctx.strokeStyle = "#000000";
+            ctx.shadowBlur = 0;
+            ctx.strokeText(text, x, y);
+            ctx.fillStyle = color;
+            ctx.fillText(text, x, y);
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, w, h);
+            
+            const grad = ctx.createLinearGradient(0, 0, w, h);
+            grad.addColorStop(0, "#120c1f");
+            grad.addColorStop(1, "#06030f");
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+            
+            ctx.fillStyle = "rgba(255,200,150,0.12)";
+            for (let i = 0; i < 250; i++) {
+                ctx.fillRect((i * 173) % w, (i * 97) % h, 1.5, 1.5);
+            }
+            
+            if (themeMode) {
+                const sortedUsedThemes = [...new Set(people.map(p => p.theme))].sort();
+                for (let theme of sortedUsedThemes) {
+                    const pos = targets[theme];
+                    if (!pos) continue;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 70, 0, Math.PI*2);
+                    ctx.strokeStyle = themeColors[theme];
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 64, 0, Math.PI*2);
+                    ctx.strokeStyle = themeColors[theme] + "66";
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                    
+                    const label = `${themeEmoji[theme]} ${theme}`;
+                    const fontSize = Math.max(12, Math.min(15, w/55));
+                    ctx.font = `bold ${fontSize}px 'Segoe UI', 'Inter'`;
+                    ctx.fillStyle = themeColors[theme];
+                    ctx.shadowBlur = 3;
+                    const textW = ctx.measureText(label).width;
+                    ctx.fillText(label, pos.x - textW/2, pos.y - 80);
+                }
+            }
+            
+            if (activeGame && !themeMode) {
+                const cx = w/2;
+                const cy = h/2;
+                const outerRadius = Math.min(w, h - BOTTOM_RESERVE) * 0.32;
+                
+                ctx.beginPath();
+                ctx.arc(cx, cy, 100, 0, Math.PI*2);
+                ctx.strokeStyle = "#ffbb77dd";
+                ctx.lineWidth = 2.8;
+                ctx.setLineDash([10, 15]);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx, cy, outerRadius, 0, Math.PI*2);
+                ctx.strokeStyle = "#ffaa88aa";
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                ctx.font = `700 ${Math.max(28, Math.min(44, w/35))}px 'Segoe UI', 'Inter', system-ui`;
+                ctx.fillStyle = "#ffdd99";
+                ctx.shadowBlur = 5;
+                const textWidth = ctx.measureText(activeGame).width;
+                ctx.fillText(activeGame, cx - textWidth/2, cy - outerRadius + 28);
+            }
+            
+            // Draw all items with SMART IMAGE DETECTION (fallback to emoji)
+            for (let item of items) {
+                const color = themeColors[item.theme];
+                const img = imageCache[item.name];
+                
+                ctx.shadowBlur = 6;
+                ctx.beginPath();
+                ctx.arc(item.x, item.y, 28, 0, Math.PI*2);
+                
+                if (img && img.complete && img.naturalWidth > 0) {
+                    ctx.save();
+                    ctx.clip();
+                    ctx.drawImage(img, item.x - 28, item.y - 28, 56, 56);
+                    ctx.restore();
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = color + "aa";
+                    ctx.fill();
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+                    
+                    ctx.font = `34px 'Segoe UI Emoji'`;
+                    ctx.fillStyle = "white";
+                    ctx.fillText(themeEmoji[item.theme], item.x - 17, item.y + 13);
+                }
+                
+                let displayName = item.name;
+                if (displayName.length > 16) displayName = displayName.substring(0, 14) + "..";
+                const nameSize = Math.max(12, Math.min(15, w/55));
+                ctx.font = `700 ${nameSize}px 'Segoe UI', 'Inter', system-ui`;
+                ctx.shadowBlur = 2;
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "#000000";
+                const nameWidth = ctx.measureText(displayName).width;
+                ctx.strokeText(displayName, item.x - nameWidth/2, item.y + 48);
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillText(displayName, item.x - nameWidth/2, item.y + 48);
+            }
+        }
+        
+        function resetAllSettled() {
+            for (let item of items) item.settled = false;
+        }
+        
+        function setGame(game) {
+            themeMode = false;
+            if (activeGame === game) activeGame = null;
+            else { activeGame = game; resetAllSettled(); }
+            updateButtons();
+        }
+        
+        function setThemeMode() {
+            activeGame = null;
+            themeMode = !themeMode;
+            resetAllSettled();
+            updateButtons();
+        }
+        
+        function updateButtons() {
+            document.querySelectorAll('.game-trigger').forEach(btn => {
+                const game = btn.getAttribute('data-game');
+                const isTheme = btn.getAttribute('data-theme') === 'reset';
+                if (game) {
+                    if (activeGame === game && !themeMode) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                } else if (isTheme) {
+                    if (themeMode) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                }
+            });
+        }
+        
+        function buildUI() {
+            const panel = document.getElementById('buttonPanel');
+            panel.innerHTML = '';
+            
+            const themeBtn = document.createElement('button');
+            themeBtn.className = 'game-trigger theme-reset';
+            themeBtn.textContent = '🎯 THEME';
+            themeBtn.setAttribute('data-theme', 'reset');
+            themeBtn.addEventListener('click', setThemeMode);
+            panel.appendChild(themeBtn);
+            
+            for (let game of allGames) {
+                const btn = document.createElement('button');
+                btn.className = 'game-trigger';
+                btn.textContent = game;
+                btn.setAttribute('data-game', game);
+                btn.addEventListener('click', () => setGame(game));
+                panel.appendChild(btn);
+            }
+        }
+        
+        function animate() {
+            update();
+            draw();
+            requestAnimationFrame(animate);
+        }
+        
+        buildUI();
+        resize();
+        animate();
+    })();
+</script>
+</body>
+</html>
